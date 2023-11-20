@@ -1,0 +1,17 @@
+Tools/
+Repos/
+Docs/
+Robot/.vscode/
+Scripts/
+*.F_188
+*.F-188
+*.o
+*.crf
+*.d
+*.hex
+*.sct
+*.lnp
+*.htm
+*.axf
+*.map
+*.dep
