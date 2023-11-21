@@ -25,7 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "task_microros.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -119,10 +119,10 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   while(1)
   {
-	vTaskSuspendAll();
-
-	xTaskResumeAll();
-	vTaskDelete(NULL);
+    vTaskSuspendAll();
+    create_microros_thread();
+    xTaskResumeAll();
+    vTaskDelete(NULL);
   }
   /* USER CODE END StartDefaultTask */
 }

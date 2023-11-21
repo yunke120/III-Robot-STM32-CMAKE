@@ -1,0 +1,51 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "make",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "-j4"
+            ],
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "make clean",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "clean"
+            ],
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "download",
+            "type": "shell",
+            "command": "openocd",
+            "args": [
+                "-s",
+                "G:/OpenOCD/share/openocd/scripts",
+                "-f",
+                "G:/OpenOCD/share/openocd/scripts/interface/stlink.cfg",
+                "-f",
+                "G:/OpenOCD/share/openocd/scripts/target/stm32f4x.cfg",
+                "-c",
+                "init; reset init; halt; flash write_image erase build/III-Robot.elf 0; reset run; exit",
+                // "program build/III-Robot.elf verify reset exit"
+            ],
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": "build"
+        }
+    ]
+}
