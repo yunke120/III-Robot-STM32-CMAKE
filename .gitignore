@@ -1,1 +1,6 @@
-build/
+build
+Tools
+task_encoder.c
+test.c
+task_all.h
+task_encoder.h

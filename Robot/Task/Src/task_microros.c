@@ -1,6 +1,7 @@
 
 #include "task_microros.h"
-//
+#include "main.h"
+#include "usart.h"
 
 #include <rcl/rcl.h>
 #include <rcl/error_handling.h>
@@ -10,8 +11,24 @@
 #include <rmw_microxrcedds_c/config.h>
 #include <rmw_microros/rmw_microros.h>
 #include <std_msgs/msg/int32.h>
+#include <stdio.h>
+#include "utils.h"
 
-#include "usart.h"
+
+#define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Aborting.\r\n",__LINE__,(int)temp_rc); return 1;}}
+#define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Continuing.\r\n",__LINE__,(int)temp_rc);}}
+
+extern bool agent_init_flag;
+
+
+static rclc_support_t support;
+static rcl_allocator_t allocator;
+rcl_publisher_t publisher;
+rcl_publisher_t publisher_2;
+std_msgs__msg__Int32 msg_2;
+std_msgs__msg__Int32 msg;
+
+static rcl_ret_t microros_init(void);
 
 osThreadId_t microrosTaskHandle;
 uint32_t microrosTaskBuffer[3000];
@@ -35,9 +52,85 @@ void microros_deallocate(void *pointer, void *state);
 void *microros_reallocate(void *pointer, size_t size, void *state);
 void *microros_zero_allocate(size_t number_of_elements, size_t size_of_element, void *state);
 
+void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
+{
+    (void) last_call_time;
+    if (NULL != timer) {
+		msg_2.data += 1.0;
+		RCSOFTCHECK(rcl_publish(&publisher_2, &msg_2, NULL));
+    }
+}
+
+
 static void microros_entry(void *param)
 {
-	osDelay(5000); // Wait for ROS agent to open
+
+	rcl_node_t node;
+    rcl_timer_t timer;
+	rclc_executor_t executor;
+
+	if(microros_init() == RCL_RET_OK)	
+	{
+		agent_init_flag = true;
+	}
+	else
+	{
+		agent_init_flag = false; return;
+	}
+
+	// create node
+	RCSOFTCHECK(rclc_node_init_default(&node, "cubemx_node", "", &support));
+
+	// create publisher
+	RCSOFTCHECK(rclc_publisher_init_default(
+		&publisher,
+		&node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+		"cubemx_publisher"));
+
+	RCSOFTCHECK(rclc_publisher_init_default(
+		&publisher_2,
+		&node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+		"msg2_publisher"));
+	// create timer
+	const unsigned int timer_timeout = 1000;
+	RCSOFTCHECK(rclc_timer_init_default(
+		&timer,
+		&support,
+		RCL_MS_TO_NS(timer_timeout),
+		timer_callback));
+
+	msg.data = 0;
+	msg_2.data = 0;
+	// create executor
+	RCSOFTCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
+	RCSOFTCHECK(rclc_executor_add_timer(&executor, &timer));
+	// Spin executor
+	// rclc_executor_spin(&executor);
+
+	while(1)
+	{
+		// osDelay(10);
+		rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
+	}
+
+}
+
+void create_microros_thread(void)
+{
+	microrosTaskHandle = osThreadNew(microros_entry, NULL, &microrosTask_attributes);
+	if (microrosTaskHandle == NULL)
+	{
+		printf("Failed to create microros Task.\r\n");
+	}
+}
+
+
+
+rcl_ret_t microros_init(void)
+{
+	rcl_init_options_t init_options;
 
 	rmw_uros_set_custom_transport(
 		true,
@@ -55,79 +148,32 @@ static void microros_entry(void *param)
 
 	if (!rcutils_set_default_allocator(&freeRTOS_allocator))
 	{
-		// u3_printf("rcutils_set_default_allocator error (line %d)\r\n", __LINE__);
-	}
-	else
-	{
-		// u3_printf("rcutils_set_default_allocator success.\r\n");
+		printf("rcutils_set_default_allocator error (line %d)\r\n", __LINE__);
+        return RCL_RET_ERROR;
 	}
 
 	// micro-ROS app
-
-	rcl_publisher_t publisher = rcl_get_zero_initialized_publisher();
-	std_msgs__msg__Int32 msg;
-	rclc_support_t support;
-	rcl_allocator_t allocator;
-	rcl_node_t node;
-	rcl_ret_t rc;
 	allocator = rcl_get_default_allocator();
 	if (allocator.allocate == NULL || allocator.deallocate == NULL)
 	{
-		// u3_printf("rcl_get_default_allocator error (line %d)\r\n", __LINE__);
+		printf("rcl_get_default_allocator error (line %d)\r\n", __LINE__);
+        return RCL_RET_ERROR;
 	}
-	else
-	{
-		// u3_printf("rcl_get_default_allocator success\r\n");
+
+	// set ROS_DOMAIN_ID
+	init_options = rcl_get_zero_initialized_init_options();
+	RCCHECK(rcl_init_options_init(&init_options, allocator));
+	RCCHECK(rcl_init_options_set_domain_id(&init_options, 0));
+
+	rmw_init_options_t* rmw_options = rcl_init_options_get_rmw_init_options(&init_options);
+	// Auto discover micro-ROS agent
+	while(rmw_uros_ping_agent_options(1000, 5, rmw_options) != RMW_RET_OK){
+		printf("Please, start your micro-ROS Agent first\r\n");
 	}
 
 	// create init_options
-	rc = rclc_support_init(&support, 0, NULL, &allocator);
-	if (rc != RCL_RET_OK)
-	{
-		// u3_printf("rclc_support_init error. (line %d)\r\n", __LINE__);
-		rclc_support_fini(&support);
-	}
-	else
-	{
-		// u3_printf("rclc_support_init success.\r\n");
-	}
+	RCCHECK(rclc_support_init_with_options(&support, 0, NULL, &init_options, &allocator));
 
-	// create node
-	rclc_node_init_default(&node, "cubemx_node", "", &support);
-
-	// create publisher
-	rclc_publisher_init_default(
-		&publisher,
-		&node,
-		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-		"cubemx_publisher");
-
-	msg.data = 0;
-
-	while (1)
-	{
-		rcl_ret_t ret = rcl_publish(&publisher, &msg, NULL);
-		if (ret != RCL_RET_OK)
-		{
-			// u3_printf("Error publishing (line %d)\r\n", __LINE__);
-		}
-		else
-		{
-			HAL_GPIO_TogglePin(LED0_GPIO_Port, LED0_Pin); // normal running
-		}
-		msg.data++;
-
-		osDelay(500);
-	}
+    return RCL_RET_OK;
 }
 
-void create_microros_thread(void)
-{
-	microrosTaskHandle = osThreadNew(microros_entry, NULL, &microrosTask_attributes);
-	if (microrosTaskHandle == NULL)
-	{
-		// 创建失败
-		// printf("Failed to create microros Task.\r\n");
-		return;
-	}
-}

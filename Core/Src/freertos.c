@@ -25,12 +25,15 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdbool.h>
+#include "utils.h"
 #include "task_microros.h"
+#include "task_robot.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+bool agent_init_flag = false;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -97,6 +100,11 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+    // vTaskSuspendAll();
+    delay_init();
+    printf_init();
+    create_microros_thread();
+    // xTaskResumeAll();
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -119,10 +127,13 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   while(1)
   {
-    vTaskSuspendAll();
-    create_microros_thread();
-    xTaskResumeAll();
-    vTaskDelete(NULL);
+    if(agent_init_flag == true)
+    {
+      osDelay(2000);
+      create_robot_thread();
+      vTaskDelete(NULL);
+    }
+    osDelay(100);
   }
   /* USER CODE END StartDefaultTask */
 }

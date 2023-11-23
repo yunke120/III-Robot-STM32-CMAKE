@@ -1,6 +1,6 @@
 {
     "files.associations": {
-        "task_microros.h": "c",
-        "usart.h": "c"
+        "*.c": "c",
+        "*.h": "c"
     }
 }
