@@ -1,5 +1,9 @@
 
 
+## Refer
+ - [std_msgs Msg/Srv Documentation](https://docs.ros.org/en/melodic/api/std_msgs/html/index-msg.html)
+ - [Handling messages memory in micro-ROS](https://micro.ros.org/docs/tutorials/advanced/handling_type_memory/)
+
 ## STM32F407VET6外设分配
 
 | 外设名称 |      对应引脚      |         说明          | 配置                  |

@@ -191,23 +191,21 @@ print_cflags:
 
 
 #######################################
-# custtom file
+# custom files
 #######################################
 C_SOURCES += 	Core/Src/syscalls.c 			\
 				Robot/App/Src/utils.c			\
+				Robot/App/Src/pid.c				\
+				Robot/App/Src/robot.c			\
+				Robot/BSP/Src/bsp_motor.c		\
+				Robot/BSP/Src/bsp_encoder.c		\
 				Robot/Task/Src/task_microros.c	\
-				Robot/Task/Src/task_robot.c	\
-				# System/Src/sys.c				\
-				# System/Src/delay.h				\
-				# Robot/BSP/Src/bsp_encoder.c		\
-				# Robot/BSP/Src/bsp_robot.c		\
-				# Robot/App/Src/pid.c				\
-				# Robot/App/Src/robot.c			\
+				Robot/Task/Src/task_robot.c		\
+				Robot/Task/Src/task_encoder.c	
 
 C_INCLUDES += 	-IRobot/App/Inc 				\
 				-IRobot/BSP/Inc					\
-				-IRobot/Task/Inc				\
-				-ISystem/Inc
+				-IRobot/Task/Inc				
 
 #######################################
 # build the application

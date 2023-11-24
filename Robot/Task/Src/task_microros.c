@@ -11,6 +11,7 @@
 #include <rmw_microxrcedds_c/config.h>
 #include <rmw_microros/rmw_microros.h>
 #include <std_msgs/msg/int32.h>
+#include <std_msgs/msg/int32_multi_array.h>
 #include <stdio.h>
 #include "utils.h"
 
@@ -18,19 +19,22 @@
 #define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Aborting.\r\n",__LINE__,(int)temp_rc); return 1;}}
 #define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Continuing.\r\n",__LINE__,(int)temp_rc);}}
 #define RCRECHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Return.\r\n",__LINE__,(int)temp_rc); return;}}
+#define SEND_MSG_SIZE	3	// 定义发送消息数组长度
 
 extern bool agent_init_flag;
 
+extern uint32_t g_RobotVelocity;
+extern uint32_t g_RobotVoltage;
+extern osMutexId_t robotVelocityMutex;
+extern osMutexId_t robotVoltageMutex;
 
 static rclc_support_t support;
 static rcl_allocator_t allocator;
-rcl_publisher_t publisher;
-rcl_publisher_t publisher_2;
-std_msgs__msg__Int32 msg_2;
+static rcl_publisher_t publisher;
+static rcl_subscription_t subscriber;
 std_msgs__msg__Int32 msg;
-
-rcl_subscription_t subscriber;
-std_msgs__msg__Int32 msg_3;
+std_msgs__msg__Int32MultiArray send_msg_array;
+int32_t send_buf[SEND_MSG_SIZE];
 
 static rcl_ret_t microros_init(void);
 
@@ -60,9 +64,18 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
 {
     (void) last_call_time;
     if (NULL != timer) {
-		msg_2.data += 1.0;
-		RCSOFTCHECK(rcl_publish(&publisher_2, &msg_2, NULL));
+
+		osMutexAcquire(robotVelocityMutex, portMAX_DELAY);
+		send_msg_array.data.data[0] = g_RobotVelocity;
+		osMutexRelease(robotVelocityMutex);
+		osMutexAcquire(robotVoltageMutex, portMAX_DELAY);
+		send_msg_array.data.data[1] = g_RobotVoltage;
+		osMutexRelease(robotVoltageMutex);
+		send_msg_array.data.data[2] = 3;
+		send_msg_array.data.size = 3;
+		RCSOFTCHECK(rcl_publish(&publisher, &send_msg_array, NULL));
     }
+	
 }
 
 void subscription_cb(const void *param)
@@ -89,20 +102,15 @@ static void microros_entry(void *param)
 	}
 
 	// create node
-	RCRECHECK(rclc_node_init_default(&node, "cubemx_node", "", &support));
+	RCRECHECK(rclc_node_init_default(&node, "stm32", "", &support));
 
 	// create publisher
 	RCRECHECK(rclc_publisher_init_default(
 		&publisher,
 		&node,
-		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-		"cubemx_publisher"));
-
-	RCRECHECK(rclc_publisher_init_default(
-		&publisher_2,
-		&node,
-		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-		"msg2_publisher"));
+		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32MultiArray),
+		"/stm32/send"));
+	
 	// create timer
 	const unsigned int timer_timeout = 1000;
 	RCRECHECK(rclc_timer_init_default(
@@ -117,13 +125,18 @@ static void microros_entry(void *param)
 		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
 		"/microros/int32"));
 
-	msg.data = 0;
-	msg_2.data = 0;
-	msg_3.data = 0;
+	std_msgs__msg__Int32MultiArray__init(&send_msg_array);
+	// 添加维度信息
+	send_msg_array.layout.data_offset = 0;
+	send_msg_array.layout.dim.size = 0;
+	send_msg_array.layout.dim.capacity = SEND_MSG_SIZE;
+	send_msg_array.data.capacity = SEND_MSG_SIZE;
+	send_msg_array.data.data = send_buf;
+	send_msg_array.data.size = 0;
 	// create executor
 	RCRECHECK(rclc_executor_init(&executor, &support.context, 2, &allocator));
 	RCRECHECK(rclc_executor_add_timer(&executor, &timer));
-	RCRECHECK(rclc_executor_add_subscription(&executor, &subscriber, &msg_3, &subscription_cb, ON_NEW_DATA));
+	RCRECHECK(rclc_executor_add_subscription(&executor, &subscriber, &msg, &subscription_cb, ON_NEW_DATA));
 	// Spin executor
 	// rclc_executor_spin(&executor);
 

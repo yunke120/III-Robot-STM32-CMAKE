@@ -29,6 +29,7 @@
 #include "utils.h"
 #include "task_microros.h"
 #include "task_robot.h"
+#include "task_encoder.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -131,6 +132,7 @@ void StartDefaultTask(void *argument)
     {
       osDelay(2000);
       create_robot_thread();
+      create_encoder_thread();
       vTaskDelete(NULL);
     }
     osDelay(100);
