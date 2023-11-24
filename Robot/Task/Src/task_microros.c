@@ -17,6 +17,7 @@
 
 #define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Aborting.\r\n",__LINE__,(int)temp_rc); return 1;}}
 #define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Continuing.\r\n",__LINE__,(int)temp_rc);}}
+#define RCRECHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Return.\r\n",__LINE__,(int)temp_rc); return;}}
 
 extern bool agent_init_flag;
 
@@ -27,6 +28,9 @@ rcl_publisher_t publisher;
 rcl_publisher_t publisher_2;
 std_msgs__msg__Int32 msg_2;
 std_msgs__msg__Int32 msg;
+
+rcl_subscription_t subscriber;
+std_msgs__msg__Int32 msg_3;
 
 static rcl_ret_t microros_init(void);
 
@@ -61,6 +65,12 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
     }
 }
 
+void subscription_cb(const void *param)
+{
+	std_msgs__msg__Int32 * msg = (std_msgs__msg__Int32 *)param;
+	app_printf("subscribe msg: %d\r\n", msg->data);
+}
+
 
 static void microros_entry(void *param)
 {
@@ -79,42 +89,49 @@ static void microros_entry(void *param)
 	}
 
 	// create node
-	RCSOFTCHECK(rclc_node_init_default(&node, "cubemx_node", "", &support));
+	RCRECHECK(rclc_node_init_default(&node, "cubemx_node", "", &support));
 
 	// create publisher
-	RCSOFTCHECK(rclc_publisher_init_default(
+	RCRECHECK(rclc_publisher_init_default(
 		&publisher,
 		&node,
 		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
 		"cubemx_publisher"));
 
-	RCSOFTCHECK(rclc_publisher_init_default(
+	RCRECHECK(rclc_publisher_init_default(
 		&publisher_2,
 		&node,
 		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
 		"msg2_publisher"));
 	// create timer
 	const unsigned int timer_timeout = 1000;
-	RCSOFTCHECK(rclc_timer_init_default(
+	RCRECHECK(rclc_timer_init_default(
 		&timer,
 		&support,
 		RCL_MS_TO_NS(timer_timeout),
 		timer_callback));
 
+	RCRECHECK(rclc_subscription_init_default(
+		&subscriber,
+		&node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+		"/microros/int32"));
+
 	msg.data = 0;
 	msg_2.data = 0;
+	msg_3.data = 0;
 	// create executor
-	RCSOFTCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
-	RCSOFTCHECK(rclc_executor_add_timer(&executor, &timer));
+	RCRECHECK(rclc_executor_init(&executor, &support.context, 2, &allocator));
+	RCRECHECK(rclc_executor_add_timer(&executor, &timer));
+	RCRECHECK(rclc_executor_add_subscription(&executor, &subscriber, &msg_3, &subscription_cb, ON_NEW_DATA));
 	// Spin executor
 	// rclc_executor_spin(&executor);
 
 	while(1)
 	{
-		// osDelay(10);
 		rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
+		osDelay(10);
 	}
-
 }
 
 void create_microros_thread(void)

@@ -38,14 +38,13 @@ extern osMutexId_t robotVelocityMutexHandle;
 osThreadId_t robot_handle;
 const osThreadAttr_t robot_attr = {
 	.name = "robot",
-	.stack_size = 1000,
+	.stack_size = 256 * 4,
 	.priority = (osPriority_t)osPriorityLow1,
 };
 
-
+// 55 42 23 
 static void robot_entry(void *param)
 {
-
 	while (1)
 	{
 		rcl_ret_t ret = rcl_publish(&publisher, &msg, NULL);
@@ -58,7 +57,8 @@ static void robot_entry(void *param)
 			HAL_GPIO_TogglePin(LED0_GPIO_Port, LED0_Pin); // normal running
 		}
 		msg.data ++;
-
+		UBaseType_t stackHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
+        app_printf("Stack High Water Mark: %u words\r\n", stackHighWaterMark);
 		osDelay(500);
 	}
 }
