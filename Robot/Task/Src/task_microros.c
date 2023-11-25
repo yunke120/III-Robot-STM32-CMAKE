@@ -19,22 +19,31 @@
 #define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Aborting.\r\n",__LINE__,(int)temp_rc); return 1;}}
 #define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Continuing.\r\n",__LINE__,(int)temp_rc);}}
 #define RCRECHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Return.\r\n",__LINE__,(int)temp_rc); return;}}
-#define SEND_MSG_SIZE	3	// 定义发送消息数组长度
+
+#define SEND_MSG_SIZE	3	
+#define RECV_MSG_SIZE	3	
 
 extern bool agent_init_flag;
 
 extern uint32_t g_RobotVelocity;
 extern uint32_t g_RobotVoltage;
-extern osMutexId_t robotVelocityMutex;
-extern osMutexId_t robotVoltageMutex;
+osMutexId_t robotVelocityMutex;
+osMutexId_t robotVoltageMutex;
+const osMutexAttr_t robotVelocityMutex_attributes = {
+	.name = "robotVelocityMutex"};
+const osMutexAttr_t robotVoltageMutex_attributes = {
+	.name = "robotVoltageMutex"};
+
 
 static rclc_support_t support;
 static rcl_allocator_t allocator;
 static rcl_publisher_t publisher;
 static rcl_subscription_t subscriber;
-std_msgs__msg__Int32 msg;
+std_msgs__msg__Int32MultiArray recv_msg_array;
 std_msgs__msg__Int32MultiArray send_msg_array;
 int32_t send_buf[SEND_MSG_SIZE];
+int32_t recv_buf[RECV_MSG_SIZE];
+
 
 static rcl_ret_t microros_init(void);
 
@@ -73,32 +82,52 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
 		osMutexRelease(robotVoltageMutex);
 		send_msg_array.data.data[2] = 3;
 		send_msg_array.data.size = 3;
-		RCSOFTCHECK(rcl_publish(&publisher, &send_msg_array, NULL));
+		if(rcl_publish(&publisher, &send_msg_array, NULL) == RCL_RET_OK)	// publish message to RaspberryPi
+		{
+			HAL_GPIO_TogglePin(LED0_GPIO_Port, LED0_Pin);	// normal running
+		}
+		else
+		{
+			app_printf("Error publishing message!\r\n");
+		}
     }
 	
 }
 
 void subscription_cb(const void *param)
 {
-	std_msgs__msg__Int32 * msg = (std_msgs__msg__Int32 *)param;
-	app_printf("subscribe msg: %d\r\n", msg->data);
+	const std_msgs__msg__Int32MultiArray * msg = (const std_msgs__msg__Int32MultiArray *)param;
+	int size = msg->data.size;
+	app_printf("size = %d --> [", size);
+	for(int i = 0; i < size; i++)
+	{
+		app_printf("%d ", msg->data.data[i]);
+	}
+	app_printf("]\r\n");
 }
 
 
 static void microros_entry(void *param)
 {
-
 	rcl_node_t node;
     rcl_timer_t timer;
 	rclc_executor_t executor;
 
-	if(microros_init() == RCL_RET_OK)	
+	if(microros_init() == RCL_RET_OK)	/* Initialize the Microros environment */
 	{
+		/**
+		 * if agent_init_flag is true, start other tasks.
+		*/
 		agent_init_flag = true;
+		printf("****************************\r\n");
+		printf("**** MicroROS Success ******\r\n");
 	}
 	else
 	{
-		agent_init_flag = false; return;
+		agent_init_flag = false; 
+		printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!\r\n");
+		printf("**** MicroROS Failed ******\r\n");
+		return;
 	}
 
 	// create node
@@ -111,37 +140,45 @@ static void microros_entry(void *param)
 		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32MultiArray),
 		"/stm32/send"));
 	
-	// create timer
-	const unsigned int timer_timeout = 1000;
+	// create timer 
+	const unsigned int timer_timeout = 500;
 	RCRECHECK(rclc_timer_init_default(
 		&timer,
 		&support,
 		RCL_MS_TO_NS(timer_timeout),
 		timer_callback));
 
+	// create subscriber 
 	RCRECHECK(rclc_subscription_init_default(
 		&subscriber,
 		&node,
-		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-		"/microros/int32"));
+		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32MultiArray),
+		"/stm32/recv"));
 
-	std_msgs__msg__Int32MultiArray__init(&send_msg_array);
-	// 添加维度信息
+	// Initialize send_msg_array
+	// std_msgs__msg__Int32MultiArray__init(&send_msg_array);
 	send_msg_array.layout.data_offset = 0;
 	send_msg_array.layout.dim.size = 0;
 	send_msg_array.layout.dim.capacity = SEND_MSG_SIZE;
 	send_msg_array.data.capacity = SEND_MSG_SIZE;
 	send_msg_array.data.data = send_buf;
 	send_msg_array.data.size = 0;
+	// Initialize recv_msg_array
+	recv_msg_array.layout.data_offset = 0;
+	recv_msg_array.layout.dim.size = 0;
+	recv_msg_array.layout.dim.capacity = RECV_MSG_SIZE;
+	recv_msg_array.data.capacity = RECV_MSG_SIZE;
+	recv_msg_array.data.data = recv_buf;
+	recv_msg_array.data.size = 0;
+
 	// create executor
 	RCRECHECK(rclc_executor_init(&executor, &support.context, 2, &allocator));
 	RCRECHECK(rclc_executor_add_timer(&executor, &timer));
-	RCRECHECK(rclc_executor_add_subscription(&executor, &subscriber, &msg, &subscription_cb, ON_NEW_DATA));
-	// Spin executor
-	// rclc_executor_spin(&executor);
-
+	RCRECHECK(rclc_executor_add_subscription(&executor, &subscriber, &recv_msg_array, &subscription_cb, ON_NEW_DATA));
+	
 	while(1)
 	{
+		// Spin executor
 		rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
 		osDelay(10);
 	}
@@ -149,6 +186,19 @@ static void microros_entry(void *param)
 
 void create_microros_thread(void)
 {
+	robotVelocityMutex = osMutexNew(&robotVelocityMutex_attributes);
+	if(robotVelocityMutex == NULL)
+	{
+		printf("Failed to create robotVelocityMutex!\r\n");
+		return;
+	}
+	robotVoltageMutex = osMutexNew(&robotVoltageMutex_attributes);
+	if(robotVoltageMutex == NULL)
+	{
+		printf("Failed to create robotVoltageMutex!\r\n");
+		return;
+	}
+
 	microrosTaskHandle = osThreadNew(microros_entry, NULL, &microrosTask_attributes);
 	if (microrosTaskHandle == NULL)
 	{

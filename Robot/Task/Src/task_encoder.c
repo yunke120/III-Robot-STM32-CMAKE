@@ -11,9 +11,7 @@
 #include "pid.h"
 
 uint32_t g_RobotVelocity;
-osMutexId_t robotVelocityMutex;
-const osMutexAttr_t robotVelocityMutex_attributes = {
-	.name = "robotVelocityMutex"};
+extern osMutexId_t robotVelocityMutex;
 
 osThreadId_t encoder_handle;
 const osThreadAttr_t encoder_attr = {
@@ -193,13 +191,6 @@ static void encoder_entry(void *param)
 
 void create_encoder_thread(void)
 {
-	robotVelocityMutex = osMutexNew(&robotVelocityMutex_attributes);
-	if(robotVelocityMutex == NULL)
-	{
-		printf("Failed to create robotVelocityMutex!\r\n");
-		return;
-	}
-
 	encoder_handle = osThreadNew(encoder_entry, NULL, &encoder_attr);
 	if (encoder_handle == NULL)
 		printf("<create> [task]	: encoder\t> 0\r\n");

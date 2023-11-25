@@ -104,7 +104,9 @@ void MX_FREERTOS_Init(void) {
     // vTaskSuspendAll();
     delay_init();
     printf_init();
+    // vTaskSuspendAll();
     create_microros_thread();
+    // xTaskResumeAll();
     // xTaskResumeAll();
   /* USER CODE END RTOS_THREADS */
 
@@ -131,8 +133,10 @@ void StartDefaultTask(void *argument)
     if(agent_init_flag == true)
     {
       osDelay(2000);
+      vTaskSuspendAll();
       create_robot_thread();
       create_encoder_thread();
+      xTaskResumeAll();
       vTaskDelete(NULL);
     }
     osDelay(100);
