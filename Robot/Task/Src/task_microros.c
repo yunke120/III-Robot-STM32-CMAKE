@@ -2,6 +2,8 @@
 #include "task_microros.h"
 #include "main.h"
 #include "usart.h"
+#include "utils.h"
+#include <stdio.h>
 
 #include <rcl/rcl.h>
 #include <rcl/error_handling.h>
@@ -10,18 +12,17 @@
 #include <uxr/client/transport.h>
 #include <rmw_microxrcedds_c/config.h>
 #include <rmw_microros/rmw_microros.h>
-#include <std_msgs/msg/int32.h>
-#include <std_msgs/msg/int32_multi_array.h>
-#include <stdio.h>
-#include "utils.h"
+#include <std_msgs/msg/byte_multi_array.h>
+
+
 
 
 #define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Aborting.\r\n",__LINE__,(int)temp_rc); return 1;}}
 #define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Continuing.\r\n",__LINE__,(int)temp_rc);}}
 #define RCRECHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Return.\r\n",__LINE__,(int)temp_rc); return;}}
 
-#define SEND_MSG_SIZE	3	
-#define RECV_MSG_SIZE	3	
+#define SEND_MSG_SIZE	10	
+#define RECV_MSG_SIZE	10	
 
 extern bool agent_init_flag;
 
@@ -39,11 +40,19 @@ static rclc_support_t support;
 static rcl_allocator_t allocator;
 static rcl_publisher_t publisher;
 static rcl_subscription_t subscriber;
-std_msgs__msg__Int32MultiArray recv_msg_array;
-std_msgs__msg__Int32MultiArray send_msg_array;
-int32_t send_buf[SEND_MSG_SIZE];
-int32_t recv_buf[RECV_MSG_SIZE];
-
+std_msgs__msg__ByteMultiArray recv_msg_array;
+std_msgs__msg__ByteMultiArray send_msg_array;
+uint8_t send_buf[SEND_MSG_SIZE];
+uint8_t recv_buf[RECV_MSG_SIZE];
+/*
+#define ROSIDL_RUNTIME_C__PRIMITIVE_SEQUENCE(STRUCT_NAME, TYPE_NAME) \
+  typedef struct rosidl_runtime_c__ ## STRUCT_NAME ## __Sequence \
+  { \
+    TYPE_NAME * data; 
+    size_t size; 
+    size_t capacity; 
+  } rosidl_runtime_c__ ## STRUCT_NAME ## __Sequence;
+*/
 
 static rcl_ret_t microros_init(void);
 
@@ -81,7 +90,14 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
 		send_msg_array.data.data[1] = g_RobotVoltage;
 		osMutexRelease(robotVoltageMutex);
 		send_msg_array.data.data[2] = 3;
-		send_msg_array.data.size = 3;
+		send_msg_array.data.data[3] = 4;
+		send_msg_array.data.data[4] = 5;
+		send_msg_array.data.data[5] = 6;
+		send_msg_array.data.data[6] = 7;
+		send_msg_array.data.data[7] = 8;
+		send_msg_array.data.data[8] = 9;
+		send_msg_array.data.data[9] = 10;
+		send_msg_array.data.size = 10;
 		if(rcl_publish(&publisher, &send_msg_array, NULL) == RCL_RET_OK)	// publish message to RaspberryPi
 		{
 			HAL_GPIO_TogglePin(LED0_GPIO_Port, LED0_Pin);	// normal running
@@ -96,7 +112,7 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
 
 void subscription_cb(const void *param)
 {
-	const std_msgs__msg__Int32MultiArray * msg = (const std_msgs__msg__Int32MultiArray *)param;
+	const std_msgs__msg__ByteMultiArray * msg = (const std_msgs__msg__ByteMultiArray *)param;
 	int size = msg->data.size;
 	app_printf("size = %d --> [", size);
 	for(int i = 0; i < size; i++)
@@ -137,7 +153,7 @@ static void microros_entry(void *param)
 	RCRECHECK(rclc_publisher_init_default(
 		&publisher,
 		&node,
-		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32MultiArray),
+		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, ByteMultiArray),
 		"/stm32/send"));
 	
 	// create timer 
@@ -152,11 +168,10 @@ static void microros_entry(void *param)
 	RCRECHECK(rclc_subscription_init_default(
 		&subscriber,
 		&node,
-		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32MultiArray),
+		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, ByteMultiArray),
 		"/stm32/recv"));
 
 	// Initialize send_msg_array
-	// std_msgs__msg__Int32MultiArray__init(&send_msg_array);
 	send_msg_array.layout.data_offset = 0;
 	send_msg_array.layout.dim.size = 0;
 	send_msg_array.layout.dim.capacity = SEND_MSG_SIZE;

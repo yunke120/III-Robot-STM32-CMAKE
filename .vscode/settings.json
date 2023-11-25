@@ -7,6 +7,7 @@
         "string_view": "c",
         "ranges": "c",
         "initializer_list": "c",
-        "utility": "c"
+        "utility": "c",
+        "cstddef": "c"
     }
 }
