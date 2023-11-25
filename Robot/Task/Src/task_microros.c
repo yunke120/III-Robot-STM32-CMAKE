@@ -14,9 +14,6 @@
 #include <rmw_microros/rmw_microros.h>
 #include <std_msgs/msg/byte_multi_array.h>
 
-
-
-
 #define RCCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Aborting.\r\n",__LINE__,(int)temp_rc); return 1;}}
 #define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Continuing.\r\n",__LINE__,(int)temp_rc);}}
 #define RCRECHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Return.\r\n",__LINE__,(int)temp_rc); return;}}
@@ -34,7 +31,6 @@ const osMutexAttr_t robotVelocityMutex_attributes = {
 	.name = "robotVelocityMutex"};
 const osMutexAttr_t robotVoltageMutex_attributes = {
 	.name = "robotVoltageMutex"};
-
 
 static rclc_support_t support;
 static rcl_allocator_t allocator;
