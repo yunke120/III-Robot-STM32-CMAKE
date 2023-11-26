@@ -2,8 +2,7 @@
 #define __APP_UTILS_H
 
 #include "stm32f4xx.h" 
-
-
+#include <stdbool.h>
 //0,不支持os
 //1,支持os
 #define SYSTEM_SUPPORT_OS		1		//定义系统文件夹是否支持OS	    
@@ -88,5 +87,7 @@ void delay_us(volatile uint32_t microseconds);
 
 void printf_init(void);
 void app_printf(const char *format, ...);
+
+bool check_data(unsigned char *buf, unsigned char len);
 
 #endif

@@ -116,3 +116,10 @@ int __io_putchar(int ch) {
     HAL_UART_Transmit(&huart3, (uint8_t*)&ch, 1, HAL_MAX_DELAY);
     return ch;
 }
+
+bool check_data(unsigned char *buf, unsigned char len)
+{
+    unsigned char sum = 0;
+    for (unsigned char i = 0; i < len-2; sum ^= buf[i++]);
+    return (sum==buf[len-2]);
+}

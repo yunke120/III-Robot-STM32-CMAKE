@@ -3,8 +3,10 @@
 #include "main.h"
 #include "usart.h"
 #include "utils.h"
-#include <stdio.h>
+#include "protocol.h"
+#include "robot.h"
 
+#include <stdio.h>
 #include <rcl/rcl.h>
 #include <rcl/error_handling.h>
 #include <rclc/rclc.h>
@@ -18,14 +20,15 @@
 #define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Continuing.\r\n",__LINE__,(int)temp_rc);}}
 #define RCRECHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Return.\r\n",__LINE__,(int)temp_rc); return;}}
 
-#define SEND_MSG_SIZE	10	
-#define RECV_MSG_SIZE	10	
+#define SEND_MSG_SIZE	PROTOCOL_MSG_LEN	
+#define RECV_MSG_SIZE	PROTOCOL_MSG_LEN	
 
-extern bool agent_init_flag;
+extern bool agent_init_flag;	// 代理初始化完成标志 true/false
 
-extern uint32_t g_RobotVelocity;
-extern uint32_t g_RobotVoltage;
-osMutexId_t robotVelocityMutex;
+extern float g_RobotActualVelocity;	// 机器人实际速度
+extern float g_RobotSetVelocity;	// 机器人设定速度
+extern uint32_t g_RobotVoltage;		// 机器人电池电压
+osMutexId_t robotVelocityMutex;		
 osMutexId_t robotVoltageMutex;
 const osMutexAttr_t robotVelocityMutex_attributes = {
 	.name = "robotVelocityMutex"};
@@ -36,8 +39,9 @@ static rclc_support_t support;
 static rcl_allocator_t allocator;
 static rcl_publisher_t publisher;
 static rcl_subscription_t subscriber;
-std_msgs__msg__ByteMultiArray recv_msg_array;
-std_msgs__msg__ByteMultiArray send_msg_array;
+
+std_msgs__msg__ByteMultiArray recv_msg_array;	// 接收消息定义
+std_msgs__msg__ByteMultiArray send_msg_array;	// 发送消息定义
 uint8_t send_buf[SEND_MSG_SIZE];
 uint8_t recv_buf[RECV_MSG_SIZE];
 /*
@@ -51,6 +55,8 @@ uint8_t recv_buf[RECV_MSG_SIZE];
 */
 
 static rcl_ret_t microros_init(void);
+static void parse_recv_data(const std_msgs__msg__ByteMultiArray *msg);
+static void parse_robot_data(const std_msgs__msg__ByteMultiArray *msg);
 
 osThreadId_t microrosTaskHandle;
 uint32_t microrosTaskBuffer[3000];
@@ -74,26 +80,25 @@ void microros_deallocate(void *pointer, void *state);
 void *microros_reallocate(void *pointer, size_t size, void *state);
 void *microros_zero_allocate(size_t number_of_elements, size_t size_of_element, void *state);
 
+/**
+ * 定时器定时发送机器人状态信息
+*/
 void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
 {
     (void) last_call_time;
+	union UInt16Union data;
     if (NULL != timer) {
-
+		send_msg_array.data.data[0] = FrameHeader;
 		osMutexAcquire(robotVelocityMutex, portMAX_DELAY);
-		send_msg_array.data.data[0] = g_RobotVelocity;
+		data.value = g_RobotActualVelocity * 1000;
+		send_msg_array.data.data[1] = data.parts.lowByte;
+		send_msg_array.data.data[2] = data.parts.highByte;
 		osMutexRelease(robotVelocityMutex);
-		osMutexAcquire(robotVoltageMutex, portMAX_DELAY);
-		send_msg_array.data.data[1] = g_RobotVoltage;
-		osMutexRelease(robotVoltageMutex);
-		send_msg_array.data.data[2] = 3;
-		send_msg_array.data.data[3] = 4;
-		send_msg_array.data.data[4] = 5;
-		send_msg_array.data.data[5] = 6;
-		send_msg_array.data.data[6] = 7;
-		send_msg_array.data.data[7] = 8;
-		send_msg_array.data.data[8] = 9;
-		send_msg_array.data.data[9] = 10;
-		send_msg_array.data.size = 10;
+		// osMutexAcquire(robotVoltageMutex, portMAX_DELAY);
+		// send_msg_array.data.data[1] = g_RobotVoltage;
+		// osMutexRelease(robotVoltageMutex);
+		send_msg_array.data.data[3] = FrameTail;
+		send_msg_array.data.size = 4;
 		if(rcl_publish(&publisher, &send_msg_array, NULL) == RCL_RET_OK)	// publish message to RaspberryPi
 		{
 			HAL_GPIO_TogglePin(LED0_GPIO_Port, LED0_Pin);	// normal running
@@ -106,19 +111,39 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
 	
 }
 
+/**
+ * 订阅消息并解析
+*/
 void subscription_cb(const void *param)
 {
 	const std_msgs__msg__ByteMultiArray * msg = (const std_msgs__msg__ByteMultiArray *)param;
 	int size = msg->data.size;
+#if 1
 	app_printf("size = %d --> [", size);
 	for(int i = 0; i < size; i++)
 	{
 		app_printf("%d ", msg->data.data[i]);
 	}
 	app_printf("]\r\n");
+#endif
+
+	if(size != PROTOCOL_MSG_LEN) return;	/* 接收数据长度验证 */
+	if(!check_data(msg->data.data, PROTOCOL_MSG_LEN))
+	{
+		app_printf("Data verification failed! (line %d)\r\n", __LINE__);
+		return;
+	}
+	parse_recv_data(msg);
 }
 
-
+/**
+ * microros任务函数
+ * 1. 初始化microros环境
+ * 2. 创建stm32节点
+ * 3. 创建发布者
+ * 4. 创建订阅者
+ * 5. 创建定时器
+*/
 static void microros_entry(void *param)
 {
 	rcl_node_t node;
@@ -268,3 +293,40 @@ rcl_ret_t microros_init(void)
     return RCL_RET_OK;
 }
 
+
+void parse_recv_data(const std_msgs__msg__ByteMultiArray *msg)
+{
+	eDEVICE device = (eDEVICE)msg->data.data[1];
+	switch (device)
+	{
+	case Robot:
+		parse_robot_data(msg);
+		break;
+	
+	default:
+		break;
+	}
+}
+
+void parse_robot_data(const std_msgs__msg__ByteMultiArray *msg)
+{
+	union UInt16Union v;
+	eRRobot cmd = (eRRobot)msg->data.data[2];
+	switch (cmd)
+	{
+	case R_RobotVelocity:
+		v.parts.lowByte = msg->data.data[4];
+		v.parts.highByte = msg->data.data[5];
+		app_printf("v = %d %d %d\r\n", msg->data.data[4],msg->data.data[5],v.value);
+		osMutexAcquire(robotVelocityMutex, portMAX_DELAY);
+		g_RobotSetVelocity = (float)v.value/1000.0;
+		osMutexRelease(robotVelocityMutex);
+		// app_printf("v = %.2f\r\n", g_RobotSetVelocity);
+		break;
+	
+	default:
+		app_printf("robot dir :%x\r\n", msg->data.data[2]);
+		robot_set_dir((eRobotDir)msg->data.data[2]);
+		break;
+	}
+}

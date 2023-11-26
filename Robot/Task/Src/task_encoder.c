@@ -10,7 +10,8 @@
 #include "robot.h"
 #include "pid.h"
 
-uint32_t g_RobotVelocity;
+float g_RobotActualVelocity;
+float g_RobotSetVelocity = 0.3;
 extern osMutexId_t robotVelocityMutex;
 
 osThreadId_t encoder_handle;
@@ -35,12 +36,11 @@ static inline uint32_t _abs_(int32_t val)
 
 static void encoder_entry(void *param)
 {
-	// int pwm_LT=0, pwm_RT=0, pwm_LB=0, pwm_RB=0;
-	uint32_t cnt = 0;
-	// float set_velocity = 0.0f;
+	int pwm_LT=0, pwm_RT=0, pwm_LB=0, pwm_RB=0;
+	float set_velocity = 0.0f;
 	uint32_t lastWakeTime = getSysTickCnt();
 
-#if 0
+#if 1
 	/* 使能4路编码器 */
 	encoder_set_enable(Encoder_LT, eEncoderEnable);
 	encoder_set_enable(Encoder_RT, eEncoderEnable);
@@ -60,7 +60,6 @@ static void encoder_entry(void *param)
 	if(pid_LT == NULL || pid_LB == NULL || pid_RT == NULL || pid_RB == NULL)
 	{
 		app_printf("Failed to allocate memory for PID controller.");
-//		osThreadDetach(encoder_handle);
 		return;
 	}
 #endif
@@ -68,7 +67,7 @@ static void encoder_entry(void *param)
 	{
 
 		vTaskDelayUntil(&lastWakeTime, F2T(RATE_100_HZ)); /* 以10ms时间运行 */
-#if 0
+#if 1
 		short counter_LT = encoder_get_counter(Encoder_LT);
 		float vel_LT = encoder_get_velocity(Encoder_LT, counter_LT);
 		eEncoderDir dir_LT = encoder_get_dir(Encoder_LT);
@@ -86,9 +85,9 @@ static void encoder_entry(void *param)
 		eEncoderDir dir_RB = encoder_get_dir(Encoder_RB);
 
 		
-		osMutexAcquire(robotVelocityMutexHandle, portMAX_DELAY);
-		set_velocity = robotSetVelocity;
-		osMutexRelease(robotVelocityMutexHandle);
+		osMutexAcquire(robotVelocityMutex, portMAX_DELAY);
+		set_velocity = g_RobotSetVelocity;
+		osMutexRelease(robotVelocityMutex);
 		
 		eRobotDir dir = robot_get_dir();
 		switch(dir)
@@ -176,16 +175,10 @@ static void encoder_entry(void *param)
 //		app_printf("pwm_RT = %d, vel = %.3fm/s\r\n", pwm_RT, vel_RT);
 //		app_printf("pwm_LB = %d, vel = %.3fm/s\r\n", pwm_LB, vel_LB);
 //		app_printf("pwm_RB = %d, vel = %.3fm/s\r\n", pwm_RB, vel_RB);
-
-		// float robot_velocity = (vel_LT+vel_RT+vel_LB+vel_RB)/4.0f;
-//		app_printf("robot_velocity = %.3f, v = %d\r\n", robot_velocity, data.value);
-		
-		// UBaseType_t stackHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
-        // app_printf("robot thread: %u words\r\n", stackHighWaterMark);
 		osMutexAcquire(robotVelocityMutex, portMAX_DELAY);
-		g_RobotVelocity ++;
+		g_RobotActualVelocity = (vel_LT+vel_RT+vel_LB+vel_RB)/4.0f;	// 计算实际速度
 		osMutexRelease(robotVelocityMutex);
-		osDelay(200);
+//		app_printf("robot_velocity = %.3f, v = %d\r\n", robot_velocity, data.value);
 	}
 }
 
