@@ -8,9 +8,9 @@
 
 #include "main.h"
 
-#define Encoder_LT_TIM htim4
+#define Encoder_LT_TIM htim5
 #define Encoder_RT_TIM htim2
-#define Encoder_LB_TIM htim5
+#define Encoder_LB_TIM htim4
 #define Encoder_RB_TIM htim3
 
 #define EncoderMultiples 4	/* 编码器倍频数，取决于编码器初始化设置 */

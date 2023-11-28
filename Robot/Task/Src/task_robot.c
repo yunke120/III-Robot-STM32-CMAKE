@@ -19,10 +19,11 @@
 #include "main.h"
 #include "tim.h"
 #include "bsp_motor.h"
+#include "bsp_ina226.h"
 #include "robot.h"
 #include "utils.h"
 
-uint32_t g_RobotVoltage;
+uint32_t g_RobotVoltage = 0;
 extern osMutexId_t robotVoltageMutex;
 
 osThreadId_t robot_handle;
@@ -34,22 +35,36 @@ const osThreadAttr_t robot_attr = {
 
 static void robot_entry(void *param)
 {	
-	g_RobotVoltage = 0;
+	uint8_t ret;
+	float f_vol;
+
+	ina226_init();
 	while (1)
 	{
-		// UBaseType_t stackHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
-        // app_printf("robot thread: %u words\r\n", stackHighWaterMark);
+#if 0
+		UBaseType_t stackHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
+        app_printf("robot thread: %u words\r\n", stackHighWaterMark);	// 获取线程所剩空间
+#endif
+		ina226_reset();
+		ina226_send_request("%s\r\n", INA226_GET_VOLTAGE);	/* 获取输入电压值 */
+		osDelay(100);
+		ret = ina226_get_response(&f_vol);
+		if(ret != 0)
+		{
+			app_printf("Failed to get voltage!\r\n");
+			continue;
+		}
+
 		osMutexAcquire(robotVoltageMutex, portMAX_DELAY);
-		g_RobotVoltage += 2.0;
+		g_RobotVoltage = f_vol;
 		osMutexRelease(robotVoltageMutex);
+		// app_printf("%.3f\r\n", f_vol);
 		osDelay(500);
 	}
 }
 
 void create_robot_thread(void)
 {
-
-
 	robot_handle = osThreadNew(robot_entry, NULL, &robot_attr);
 
 	if (robot_handle == NULL)

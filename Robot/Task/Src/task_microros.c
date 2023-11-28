@@ -20,7 +20,7 @@
 #define RCSOFTCHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Continuing.\r\n",__LINE__,(int)temp_rc);}}
 #define RCRECHECK(fn) { rcl_ret_t temp_rc = fn; if((temp_rc != RCL_RET_OK)){printf("Failed status on line %d: %d. Return.\r\n",__LINE__,(int)temp_rc); return;}}
 
-#define SEND_MSG_SIZE	PROTOCOL_MSG_LEN	
+#define SEND_MSG_SIZE	7
 #define RECV_MSG_SIZE	PROTOCOL_MSG_LEN	
 
 extern bool agent_init_flag;	// 代理初始化完成标志 true/false
@@ -87,18 +87,24 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
 {
     (void) last_call_time;
 	union UInt16Union data;
+	send_msg_array.data.size = SEND_MSG_SIZE;
     if (NULL != timer) {
-		send_msg_array.data.data[0] = FrameHeader;
+		send_msg_array.data.data[0] = FrameHeader;			/* 设置帧头 */
+
 		osMutexAcquire(robotVelocityMutex, portMAX_DELAY);
 		data.value = g_RobotActualVelocity * 1000;
-		send_msg_array.data.data[1] = data.parts.lowByte;
-		send_msg_array.data.data[2] = data.parts.highByte;
 		osMutexRelease(robotVelocityMutex);
-		// osMutexAcquire(robotVoltageMutex, portMAX_DELAY);
-		// send_msg_array.data.data[1] = g_RobotVoltage;
-		// osMutexRelease(robotVoltageMutex);
-		send_msg_array.data.data[3] = FrameTail;
-		send_msg_array.data.size = 4;
+		send_msg_array.data.data[1] = data.parts.lowByte;	/* 设置机器人速度 */
+		send_msg_array.data.data[2] = data.parts.highByte;
+
+		osMutexAcquire(robotVoltageMutex, portMAX_DELAY);
+		data.value = g_RobotVoltage * 1000;
+		osMutexRelease(robotVoltageMutex);
+		send_msg_array.data.data[3] = data.parts.lowByte;	/* 设置机器人电压 */
+		send_msg_array.data.data[4] = data.parts.highByte;
+
+		send_msg_array.data.data[5] = check_digit(send_msg_array.data.data, SEND_MSG_SIZE);
+		send_msg_array.data.data[6] = FrameTail;			/* 设置帧尾 */
 		if(rcl_publish(&publisher, &send_msg_array, NULL) == RCL_RET_OK)	// publish message to RaspberryPi
 		{
 			HAL_GPIO_TogglePin(LED0_GPIO_Port, LED0_Pin);	// normal running
@@ -108,7 +114,6 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
 			app_printf("Error publishing message!\r\n");
 		}
     }
-	
 }
 
 /**
@@ -118,7 +123,7 @@ void subscription_cb(const void *param)
 {
 	const std_msgs__msg__ByteMultiArray * msg = (const std_msgs__msg__ByteMultiArray *)param;
 	int size = msg->data.size;
-#if 1
+#if 0
 	app_printf("size = %d --> [", size);
 	for(int i = 0; i < size; i++)
 	{

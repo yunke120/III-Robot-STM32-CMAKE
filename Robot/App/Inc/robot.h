@@ -23,6 +23,8 @@ typedef enum
 	Robot_Rotate_Left	/* 原地左旋转 */
 } eRobotDir;			/* 小车运动方向枚举 */
 
+void robot_enable(void);
+void robot_disable(void);
 void robot_set_dir(eRobotDir dir); /* 设置小车方向 */
 eRobotDir robot_get_dir(void);	   /* 获取小车当前运动方向 */
 

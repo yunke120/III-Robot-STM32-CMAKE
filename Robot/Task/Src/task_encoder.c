@@ -38,9 +38,12 @@ static void encoder_entry(void *param)
 {
 	int pwm_LT=0, pwm_RT=0, pwm_LB=0, pwm_RB=0;
 	float set_velocity = 0.0f;
+	// uint32_t cnt = 0;
+	// float f_v;
 	uint32_t lastWakeTime = getSysTickCnt();
-
-#if 1
+/**
+ * 编码器
+*/
 	/* 使能4路编码器 */
 	encoder_set_enable(Encoder_LT, eEncoderEnable);
 	encoder_set_enable(Encoder_RT, eEncoderEnable);
@@ -62,27 +65,36 @@ static void encoder_entry(void *param)
 		app_printf("Failed to allocate memory for PID controller.");
 		return;
 	}
-#endif
+/**
+ * 电机
+*/
+	robot_set_dir(Robot_Stop);
+	robot_enable();
+	motor_set_velocity(Wheel_LT, 0);
+	motor_set_velocity(Wheel_RT, 0);
+	motor_set_velocity(Wheel_LB, 0);
+	motor_set_velocity(Wheel_RB, 0);
+
 	while (1)
 	{
 
 		vTaskDelayUntil(&lastWakeTime, F2T(RATE_100_HZ)); /* 以10ms时间运行 */
-#if 1
+
 		short counter_LT = encoder_get_counter(Encoder_LT);
 		float vel_LT = encoder_get_velocity(Encoder_LT, counter_LT);
-		eEncoderDir dir_LT = encoder_get_dir(Encoder_LT);
+		// eEncoderDir dir_LT = encoder_get_dir(Encoder_LT);
 
 		short counter_RT = encoder_get_counter(Encoder_RT);
 		float vel_RT = encoder_get_velocity(Encoder_RT, counter_RT);
-		eEncoderDir dir_RT = encoder_get_dir(Encoder_RT);
+		// eEncoderDir dir_RT = encoder_get_dir(Encoder_RT);
 
 		short counter_LB = encoder_get_counter(Encoder_LB);
 		float vel_LB = encoder_get_velocity(Encoder_LB, counter_LB);
-		eEncoderDir dir_LB = encoder_get_dir(Encoder_LB);
+		// eEncoderDir dir_LB = encoder_get_dir(Encoder_LB);
 
 		short counter_RB = encoder_get_counter(Encoder_RB);
 		float vel_RB = encoder_get_velocity(Encoder_RB, counter_RB);
-		eEncoderDir dir_RB = encoder_get_dir(Encoder_RB);
+		// eEncoderDir dir_RB = encoder_get_dir(Encoder_RB);
 
 		
 		osMutexAcquire(robotVelocityMutex, portMAX_DELAY);
@@ -169,16 +181,23 @@ static void encoder_entry(void *param)
 		motor_set_velocity(Wheel_RT, _abs_(pwm_RT));
 		motor_set_velocity(Wheel_LB, _abs_(pwm_LB));
 		motor_set_velocity(Wheel_RB, _abs_(pwm_RB));
-#endif
+
 //		app_printf("\r\n");
 //		app_printf("pwm_LT = %d, vel = %.3fm/s\r\n", pwm_LT, vel_LT);
 //		app_printf("pwm_RT = %d, vel = %.3fm/s\r\n", pwm_RT, vel_RT);
 //		app_printf("pwm_LB = %d, vel = %.3fm/s\r\n", pwm_LB, vel_LB);
 //		app_printf("pwm_RB = %d, vel = %.3fm/s\r\n", pwm_RB, vel_RB);
+		// app_printf("%d %d %d %d\r\n", counter_LT, counter_LB, counter_RT, counter_RB);
 		osMutexAcquire(robotVelocityMutex, portMAX_DELAY);
 		g_RobotActualVelocity = (vel_LT+vel_RT+vel_LB+vel_RB)/4.0f;	// 计算实际速度
+		f_v = g_RobotActualVelocity;
 		osMutexRelease(robotVelocityMutex);
-//		app_printf("robot_velocity = %.3f, v = %d\r\n", robot_velocity, data.value);
+
+		// if(((++cnt) % 50) == 0)
+		// {
+			// cnt = 0;
+			// app_printf("%.3f\r\n", f_v);
+		// }
 	}
 }
 

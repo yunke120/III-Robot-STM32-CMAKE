@@ -85,9 +85,10 @@ uint32_t delay_init(void);
 void delay_ms(volatile uint32_t milliseconds);
 void delay_us(volatile uint32_t microseconds);
 
-void printf_init(void);
-void app_printf(const char *format, ...);
+void printf_init(void);                                             /* 日志打印初始化 */
+void app_printf(const char *format, ...);                           /* 线程安全的日志打印 */
 
-bool check_data(unsigned char *buf, unsigned char len);
+unsigned char check_digit(unsigned char *buf, unsigned char len);   /* 获取校验位 */
+bool check_data(unsigned char *buf, unsigned char len);             /* 校验数据 */
 
 #endif

@@ -18,6 +18,31 @@
 /* 定义小车运动方向，默认停止 */
 static eRobotDir g_robot_Dir = Robot_Stop;
 
+
+/**
+ * 机器人使能
+*/
+void robot_enable(void)
+{
+	motor_set_enable(Wheel_LT, eWheelEnable);
+	motor_set_enable(Wheel_RT, eWheelEnable);
+	motor_set_enable(Wheel_LB, eWheelEnable);
+	motor_set_enable(Wheel_RB, eWheelEnable);
+}
+
+/**
+ * 机器人失能
+*/
+void robot_disable(void)
+{
+	motor_set_enable(Wheel_LT, eWheelDisable);
+	motor_set_enable(Wheel_RT, eWheelDisable);
+	motor_set_enable(Wheel_LB, eWheelDisable);
+	motor_set_enable(Wheel_RB, eWheelDisable);
+}
+
+
+
 /**
  * @brief  设置小车方向
  *

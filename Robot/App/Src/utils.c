@@ -117,9 +117,15 @@ int __io_putchar(int ch) {
     return ch;
 }
 
-bool check_data(unsigned char *buf, unsigned char len)
+inline unsigned char check_digit(unsigned char *buf, unsigned char len)
 {
     unsigned char sum = 0;
     for (unsigned char i = 0; i < len-2; sum ^= buf[i++]);
-    return (sum==buf[len-2]);
+    return sum;
 }
+
+inline bool check_data(unsigned char *buf, unsigned char len)
+{
+    return (check_digit(buf, len)==buf[len-2]);
+}
+

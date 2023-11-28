@@ -39,7 +39,7 @@
 |          |      PB8,PB9       |    MPU6050(软IIC)     |                       |
 |   总计   | (18+40)/100=58/100 |                       |                       |
 
-
+![image-20231128113819264](./assets/image-20231128113819264.png)
 
 ## Reference
  - [std_msgs Msg/Srv Documentation](https://docs.ros.org/en/melodic/api/std_msgs/html/index-msg.html)
