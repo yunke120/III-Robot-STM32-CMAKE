@@ -190,7 +190,7 @@ static void encoder_entry(void *param)
 		// app_printf("%d %d %d %d\r\n", counter_LT, counter_LB, counter_RT, counter_RB);
 		osMutexAcquire(robotVelocityMutex, portMAX_DELAY);
 		g_RobotActualVelocity = (vel_LT+vel_RT+vel_LB+vel_RB)/4.0f;	// 计算实际速度
-		f_v = g_RobotActualVelocity;
+		// f_v = g_RobotActualVelocity;
 		osMutexRelease(robotVelocityMutex);
 
 		// if(((++cnt) % 50) == 0)

@@ -33,11 +33,11 @@
             "command": "openocd",
             "args": [
                 "-s",
-                "G:/OpenOCD/share/openocd/scripts",
+                "C:/Program Files/openocd/share/openocd/scripts",
                 "-f",
-                "G:/OpenOCD/share/openocd/scripts/interface/stlink.cfg",
+                "C:/Program Files/openocd/share/openocd/scripts/interface/stlink.cfg",
                 "-f",
-                "G:/OpenOCD/share/openocd/scripts/target/stm32f4x.cfg",
+                "C:/Program Files/openocd/share/openocd/scripts/target/stm32f4x.cfg",
                 "-c",
                 "init; reset init; halt; flash write_image erase build/III-Robot.elf 0; reset run; exit",
                 // "program build/III-Robot.elf verify reset exit"
